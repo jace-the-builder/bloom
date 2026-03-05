@@ -78,6 +78,7 @@ function DrawContent() {
     if (!canvas) return
 
     const onStart = (e: MouseEvent | TouchEvent) => {
+      if (e instanceof TouchEvent) e.preventDefault()
       saveHistory()
       isDrawingRef.current = true
       lastPosRef.current   = getPos(e, canvas)
@@ -112,7 +113,7 @@ function DrawContent() {
     canvas.addEventListener('mousemove',  onMove)
     canvas.addEventListener('mouseup',    onEnd)
     canvas.addEventListener('mouseleave', onEnd)
-    canvas.addEventListener('touchstart', onStart, { passive: true })
+    canvas.addEventListener('touchstart', onStart, { passive: false })
     canvas.addEventListener('touchmove',  onMove,  { passive: false })
     canvas.addEventListener('touchend',   onEnd)
 
