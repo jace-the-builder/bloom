@@ -51,16 +51,21 @@ function DrawContent() {
 
     const ctx = canvas.getContext('2d', { alpha: true })
     if (!ctx) return
-    ctx.scale(dpr, dpr)
-    ctx.clearRect(0, 0, size, size)
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
   }, [])
 
   const getPos = (e: MouseEvent | TouchEvent, canvas: HTMLCanvasElement) => {
-    const rect = canvas.getBoundingClientRect()
+    const rect   = canvas.getBoundingClientRect()
+    const scaleX = canvas.width  / rect.width
+    const scaleY = canvas.height / rect.height
     if ('touches' in e) {
-      return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top }
+      const touch = e.touches[0]
+      return { x: (touch.clientX - rect.left) * scaleX, y: (touch.clientY - rect.top) * scaleY }
     }
-    return { x: (e as MouseEvent).clientX - rect.left, y: (e as MouseEvent).clientY - rect.top }
+    return {
+      x: ((e as MouseEvent).clientX - rect.left) * scaleX,
+      y: ((e as MouseEvent).clientY - rect.top)  * scaleY,
+    }
   }
 
   const saveHistory = useCallback(() => {
@@ -92,7 +97,7 @@ function DrawContent() {
       const pos = getPos(e, canvas)
       ctx.beginPath()
       ctx.strokeStyle = colorRef.current
-      ctx.lineWidth   = sizeRef.current
+      ctx.lineWidth   = sizeRef.current * (window.devicePixelRatio || 1)
       ctx.lineCap     = 'round'
       ctx.lineJoin    = 'round'
       if (lastPosRef.current) {
@@ -144,8 +149,7 @@ function DrawContent() {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
     saveHistory()
-    const size = canvas.width / (window.devicePixelRatio || 1)
-    ctx.clearRect(0, 0, size, size)
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
     setHasDrawn(false)
   }
 
