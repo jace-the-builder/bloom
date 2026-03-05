@@ -37,7 +37,7 @@ export default function Homepage() {
   const selectedEvent = events.find(e => e.id === selectedEventId) ?? null
 
   return (
-    <main className="mx-auto flex w-full max-w-[393px] flex-col bg-[#FDF6EE] px-[25px] pt-8 pb-10">
+    <main className="mx-auto flex h-[100dvh] w-full max-w-[393px] flex-col overflow-hidden bg-[#FDF6EE] px-[25px] pt-8 pb-10">
       {/* Logo */}
       <div className="mb-4 flex justify-center">
         <Image
@@ -102,11 +102,11 @@ export default function Homepage() {
       </div>
 
       {/* Bouquet display */}
-      <div className="mb-5">
+      <div className="mb-5 min-h-0 flex-1">
         {selectedEventId ? (
-          <BouquetView eventId={selectedEventId} />
+          <BouquetView eventId={selectedEventId} fillHeight />
         ) : (
-          <div className="w-full rounded-2xl bg-[#FDF6EE]" style={{ aspectRatio: '357 / 439' }} />
+          <div className="h-full w-full rounded-2xl bg-[#FDF6EE]" />
         )}
       </div>
 

@@ -17,7 +17,7 @@ export default function AddedPage() {
   const name = flower?.contributor_name ?? '...'
 
   return (
-    <main className="mx-auto w-full max-w-[393px] bg-[#FDF6EE]">
+    <main className="mx-auto flex h-[100dvh] w-full max-w-[393px] flex-col overflow-hidden bg-[#FDF6EE]">
       {/* Logo */}
       <div className="flex flex-col items-center pt-8 pb-2">
         <Image src="/images/logo.png" alt="Bloom" width={120} height={62} priority />
@@ -49,11 +49,11 @@ export default function AddedPage() {
       </p>
 
       {/* Bouquet */}
-      <div className="px-[18px] mb-3">
+      <div className="min-h-0 flex-1 px-[18px] mb-3">
         {flower?.event_id ? (
-          <BouquetView eventId={flower.event_id} highlightFlowerId={flower.id} />
+          <BouquetView eventId={flower.event_id} highlightFlowerId={flower.id} fillHeight />
         ) : (
-          <div className="w-full rounded-2xl bg-[#FDF6EE]" style={{ aspectRatio: '357 / 439' }} />
+          <div className="h-full w-full rounded-2xl bg-[#FDF6EE]" />
         )}
       </div>
 

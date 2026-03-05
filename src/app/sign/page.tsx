@@ -75,7 +75,7 @@ function SignContent() {
   return (
     <main
       className="mx-auto flex w-full max-w-[393px] flex-col bg-[#FDF6EE] px-[25px] pt-8 pb-8"
-      style={{ minHeight: '100dvh' }}
+      style={{ height: '100dvh' }}
     >
       {/* Logo */}
       <div className="mb-2 flex flex-col items-center">

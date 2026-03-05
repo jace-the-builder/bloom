@@ -33,7 +33,7 @@ function BouquetContent() {
   }, [eventIdParam])
 
   return (
-    <main className="mx-auto w-full max-w-[393px] bg-[#FDF6EE]">
+    <main className="mx-auto flex h-[100dvh] w-full max-w-[393px] flex-col overflow-hidden bg-[#FDF6EE]">
       {/* Logo */}
       <div className="flex flex-col items-center pt-8 pb-4">
         <Image src="/images/logo.png" alt="Bloom" width={120} height={62} priority />
@@ -58,13 +58,13 @@ function BouquetContent() {
       </div>
 
       {/* Bouquet or empty states */}
-      <div className="px-[18px] mt-4 mb-3">
+      <div className="min-h-0 flex-1 px-[18px] mt-4 mb-3">
         {loading ? (
-          <div className="w-full rounded-2xl bg-[#FDF6EE]" style={{ aspectRatio: '357 / 439' }} />
+          <div className="h-full w-full rounded-2xl bg-[#FDF6EE]" />
         ) : event ? (
-          <BouquetView eventId={event.id} />
+          <BouquetView eventId={event.id} fillHeight />
         ) : (
-          <div className="py-16 text-center">
+          <div className="flex h-full items-center justify-center">
             <p
               className="text-[18px] text-[#999]"
               style={{ fontFamily: 'var(--font-biro)' }}

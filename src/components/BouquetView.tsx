@@ -7,6 +7,7 @@ import EnvelopeOverlay from './EnvelopeOverlay'
 type Props = {
   eventId: string
   highlightFlowerId?: string
+  fillHeight?: boolean
 }
 
 // ─── SVG coordinate space ─────────────────────────────────────────────────────
@@ -60,7 +61,7 @@ const BUNDLE_LEN     = 32  // px straight down
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function BouquetView({ eventId, highlightFlowerId }: Props) {
+export default function BouquetView({ eventId, highlightFlowerId, fillHeight }: Props) {
   const [flowers,  setFlowers]  = useState<Flower[]>([])
   const [loading,  setLoading]  = useState(true)
   const [selected, setSelected] = useState<Flower | null>(null)
@@ -100,7 +101,7 @@ export default function BouquetView({ eventId, highlightFlowerId }: Props) {
 
   // ── Loading state ─────────────────────────────────────────────────────────
   if (loading) {
-    return <div className="w-full rounded-2xl bg-[#FDF6EE]" style={{ aspectRatio: `${W} / ${getH(0)}` }} />
+    return <div className="w-full rounded-2xl bg-[#FDF6EE]" style={fillHeight ? { height: '100%' } : { aspectRatio: `${W} / ${getH(0)}` }} />
   }
 
   // ── Empty state ───────────────────────────────────────────────────────────
@@ -110,7 +111,7 @@ export default function BouquetView({ eventId, highlightFlowerId }: Props) {
     return (
       <div
         className="relative w-full overflow-hidden rounded-2xl bg-[#FDF6EE]"
-        style={{ aspectRatio: `${W} / ${H0}` }}
+        style={fillHeight ? { height: '100%' } : { aspectRatio: `${W} / ${H0}` }}
       >
         <svg
           className="absolute inset-0 h-full w-full"
@@ -155,7 +156,7 @@ export default function BouquetView({ eventId, highlightFlowerId }: Props) {
     <>
       <div
         className="relative w-full overflow-hidden rounded-2xl bg-[#FDF6EE]"
-        style={{ aspectRatio: `${W} / ${H}` }}
+        style={fillHeight ? { height: '100%' } : { aspectRatio: `${W} / ${H}` }}
       >
         {/* ── Stems SVG — behind ribbon and flowers (z-index 0) ── */}
         <svg
