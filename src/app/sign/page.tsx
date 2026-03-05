@@ -1,35 +1,39 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase, getMostRecentEvent } from '@/lib/supabase'
 
-export default function SignPage() {
-  const [name,         setName]         = useState('')
-  const [mantra,       setMantra]       = useState('')
-  const [submitting,   setSubmitting]   = useState(false)
+function SignContent() {
+  const [name,          setName]          = useState('')
+  const [mantra,        setMantra]        = useState('')
+  const [submitting,    setSubmitting]    = useState(false)
   const [flowerDataUrl, setFlowerDataUrl] = useState<string | null>(null)
-  const router = useRouter()
+
+  const router       = useRouter()
+  const searchParams = useSearchParams()
+  const eventId      = searchParams.get('eventId')
 
   useEffect(() => {
     const saved = sessionStorage.getItem('flowerDrawing')
-    if (!saved) router.replace('/draw')
+    if (!saved) router.replace(eventId ? `/draw?eventId=${eventId}` : '/draw')
     else setFlowerDataUrl(saved)
-  }, [router])
+  }, [router, eventId])
 
   async function handleSubmit() {
     if (!name.trim() || !mantra.trim() || !flowerDataUrl || submitting) return
     setSubmitting(true)
 
     try {
-      const event = await getMostRecentEvent()
-      if (!event) throw new Error('No events found')
+      // Use eventId from URL params; fall back to most recent event if absent
+      const resolvedEventId = eventId ?? (await getMostRecentEvent())?.id
+      if (!resolvedEventId) throw new Error('No event found')
 
       // Convert dataURL → blob
-      const res  = await fetch(flowerDataUrl)
-      const blob = await res.blob()
+      const res      = await fetch(flowerDataUrl)
+      const blob     = await res.blob()
       const filename = `${crypto.randomUUID()}.png`
 
       // Upload to Supabase Storage
@@ -42,22 +46,15 @@ export default function SignPage() {
         .from('flowers')
         .getPublicUrl(filename)
 
-      // Bouquet fan: flowers radiate upward from the bottom-centre base.
-      // angle is measured from vertical (0 = straight up), spread ±40°.
-      const fanAngle  = (Math.random() - 0.5) * (Math.PI * 80 / 180)  // ±40° in radians
-      const stemLen   = 240 + Math.random() * 80                       // 240–320 px in the 357×439 space
-      const x = Math.max(12, Math.min(88, 50 + (Math.sin(fanAngle) * stemLen / 357) * 100))
-      const y = Math.max(8,  Math.min(50, 92 - (Math.cos(fanAngle) * stemLen / 439) * 100))
-
       const { data: flower, error: dbError } = await supabase
         .from('flowers')
         .insert({
-          event_id:           event.id,
+          event_id:           resolvedEventId,
           contributor_name:   name.trim(),
           mantra:             mantra.trim(),
           flower_image_url:   publicUrl,
-          bouquet_position_x: x,
-          bouquet_position_y: y,
+          bouquet_position_x: 50,
+          bouquet_position_y: 50,
           bouquet_rotation:   (Math.random() - 0.5) * 40,
           stem_variant:       Math.ceil(Math.random() * 8),
         })
@@ -66,7 +63,7 @@ export default function SignPage() {
       if (dbError) throw dbError
 
       sessionStorage.setItem('submittedFlower', JSON.stringify(flower))
-      router.push('/added')
+      router.push(eventId ? `/added?eventId=${eventId}` : '/added')
     } catch (err) {
       console.error(err)
       setSubmitting(false)
@@ -87,7 +84,10 @@ export default function SignPage() {
 
       {/* Back + Pagination */}
       <div className="mb-5 flex items-center justify-between">
-        <Link href="/draw" className="flex items-center gap-1.5">
+        <Link
+          href={eventId ? `/draw?eventId=${eventId}` : '/draw'}
+          className="flex items-center gap-1.5"
+        >
           <svg width="20" height="14" viewBox="0 0 20 14" fill="none" aria-hidden="true">
             <path d="M19 7H1M7 1L1 7L7 13" stroke="#333" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -174,5 +174,13 @@ export default function SignPage() {
         {submitting ? 'Adding to the bouquet...' : 'Submit'}
       </button>
     </main>
+  )
+}
+
+export default function SignPage() {
+  return (
+    <Suspense>
+      <SignContent />
+    </Suspense>
   )
 }

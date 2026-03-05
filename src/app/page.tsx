@@ -112,7 +112,7 @@ export default function Homepage() {
 
       {/* Leave a flower button */}
       <Link
-        href="/draw"
+        href={selectedEventId ? `/draw?eventId=${selectedEventId}` : '/draw'}
         className="mb-5 flex w-full items-center justify-center px-8 py-3 text-center shadow-[0px_4px_8px_0px_rgba(0,0,0,0.15),0px_1px_3px_0px_rgba(0,0,0,0.3)]"
         style={{
           backgroundColor: '#ffcbbf',

@@ -1,9 +1,9 @@
 'use client'
 
-import { useRef, useState, useEffect, useCallback } from 'react'
+import { useRef, useState, useEffect, useCallback, Suspense } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 const COLORS = [
   { id: 'rose',       value: '#E8A0A0' },
@@ -18,7 +18,7 @@ const BRUSH_SIZES = [
   { id: 'lg', px: 14, display: 32 },
 ]
 
-export default function DrawPage() {
+function DrawContent() {
   const canvasRef    = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const colorRef     = useRef(COLORS[0].value)
@@ -31,7 +31,9 @@ export default function DrawPage() {
   const [selectedSize,  setSelectedSize]  = useState(BRUSH_SIZES[1].px)
   const [hasDrawn,      setHasDrawn]      = useState(false)
 
-  const router = useRouter()
+  const router       = useRouter()
+  const searchParams = useSearchParams()
+  const eventId      = searchParams.get('eventId')
 
   useEffect(() => { colorRef.current = selectedColor }, [selectedColor])
   useEffect(() => { sizeRef.current  = selectedSize  }, [selectedSize])
@@ -151,7 +153,7 @@ export default function DrawPage() {
     const canvas = canvasRef.current
     if (!canvas) return
     sessionStorage.setItem('flowerDrawing', canvas.toDataURL('image/png'))
-    router.push('/sign')
+    router.push(eventId ? `/sign?eventId=${eventId}` : '/sign')
   }
 
   return (
@@ -291,15 +293,23 @@ export default function DrawPage() {
         onClick={handleNext}
         className="mt-auto w-full py-3 text-center text-[24px] text-white transition-opacity"
         style={{
-          fontFamily:    'var(--font-chunky)',
+          fontFamily:      'var(--font-chunky)',
           backgroundColor: '#ffcbbf',
-          borderRadius:  '40px 32px 36px 44px / 36px 40px 32px 38px',
-          opacity:       hasDrawn ? 1 : 0.4,
+          borderRadius:    '40px 32px 36px 44px / 36px 40px 32px 38px',
+          opacity:         hasDrawn ? 1 : 0.4,
         }}
         disabled={!hasDrawn}
       >
         {hasDrawn ? 'Next →' : 'Next (draw first)'}
       </button>
     </main>
+  )
+}
+
+export default function DrawPage() {
+  return (
+    <Suspense>
+      <DrawContent />
+    </Suspense>
   )
 }
