@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { Event, getMostRecentEvent, supabase } from '@/lib/supabase'
 import BouquetView from '@/components/BouquetView'
 
-export default function BouquetPage() {
+function BouquetContent() {
   const [event,   setEvent]   = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
   const searchParams = useSearchParams()
@@ -98,5 +98,13 @@ export default function BouquetPage() {
         </Link>
       </div>
     </main>
+  )
+}
+
+export default function BouquetPage() {
+  return (
+    <Suspense>
+      <BouquetContent />
+    </Suspense>
   )
 }
