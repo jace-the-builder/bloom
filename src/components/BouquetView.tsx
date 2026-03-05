@@ -162,12 +162,17 @@ export default function BouquetView({ eventId, highlightFlowerId, fillHeight }: 
   }, [])
 
   // Native touch listeners (passive: false so preventDefault works)
+  // n is in deps so the effect re-runs once the bouquet div actually renders
+  // (containerRef.current is null during the loading phase)
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
 
+    console.log('[BouquetView] attaching touch listeners to', container)
+
     const onStart = (e: TouchEvent) => {
       e.preventDefault()  // prevent synthetic click
+      console.log('[BouquetView] touchstart', e.touches[0].clientX, e.touches[0].clientY)
       setIsTouching(true)
       const t = e.touches[0]
       updateSway(t.clientX, t.clientY)
@@ -175,6 +180,7 @@ export default function BouquetView({ eventId, highlightFlowerId, fillHeight }: 
 
     const onMove = (e: TouchEvent) => {
       e.preventDefault()
+      console.log('[BouquetView] touchmove', e.touches[0].clientX, e.touches[0].clientY)
       const t  = e.touches[0]
       const cx = t.clientX
       const cy = t.clientY
@@ -183,6 +189,7 @@ export default function BouquetView({ eventId, highlightFlowerId, fillHeight }: 
     }
 
     const onEnd = () => {
+      console.log('[BouquetView] touchend, activeId:', activeIdRef.current)
       setIsTouching(false)
       setSwayAngles({})
       const flower = flowersRef.current.find(f => f.id === activeIdRef.current)
@@ -199,7 +206,7 @@ export default function BouquetView({ eventId, highlightFlowerId, fillHeight }: 
       container.removeEventListener('touchmove',  onMove)
       container.removeEventListener('touchend',   onEnd)
     }
-  }, [updateSway])
+  }, [updateSway, n])
 
   // ── Loading state ─────────────────────────────────────────────────────────
   if (loading) {
@@ -256,7 +263,10 @@ export default function BouquetView({ eventId, highlightFlowerId, fillHeight }: 
       <div
         ref={containerRef}
         className="relative w-full overflow-hidden rounded-2xl bg-[#FDF6EE]"
-        style={fillHeight ? { height: '100%' } : { aspectRatio: `${W} / ${H}` }}
+        style={{
+          ...(fillHeight ? { height: '100%' } : { aspectRatio: `${W} / ${H}` }),
+          touchAction: 'none',
+        }}
       >
         {/* ── Stems SVG — behind ribbon and flowers (z-index 0) ── */}
         <svg
