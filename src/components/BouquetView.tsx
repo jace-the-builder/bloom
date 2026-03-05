@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { supabase, Flower } from '@/lib/supabase'
 import EnvelopeOverlay from './EnvelopeOverlay'
 
@@ -20,8 +20,7 @@ function getH(n: number): number {
   return 490
 }
 
-// ribbonY is the vertical centre of the ribbon grip point
-const RIBBON_PCT = 0.62  // fraction of H
+const RIBBON_PCT = 0.62
 
 // ─── Flower sizing ────────────────────────────────────────────────────────────
 
@@ -34,30 +33,31 @@ function getFlowerSize(n: number): number {
 const TAP_MIN = 44
 
 // ─── Layout ───────────────────────────────────────────────────────────────────
-//
-// Flower head positions are derived from fixed fan angles radiating UPWARD
-// from the ribbon centre (ribbonX, ribbonY). All stems are the same length.
 
 interface LayoutPos { x: number; y: number }
 
-const STEM_PX    = 180                      // stem length in SVG px
-const MAX_FAN    = 35 * Math.PI / 180       // ±35° from vertical
+const STEM_PX = 180
+const MAX_FAN = 35 * Math.PI / 180
 
 function computeLayout(n: number, H: number): LayoutPos[] {
   if (n === 0) return []
   const ribbonY = H * RIBBON_PCT
   return Array.from({ length: n }, (_, i) => {
     const angle = n === 1 ? 0 : -MAX_FAN + (2 * MAX_FAN * i) / (n - 1)
-    // Flower head is ABOVE the ribbon: y decreases going up
     const svgX = W / 2 + STEM_PX * Math.sin(angle)
     const svgY = ribbonY - STEM_PX * Math.cos(angle)
     return { x: (svgX / W) * 100, y: (svgY / H) * 100 }
   })
 }
 
-// Offsets for the tight bundle below the ribbon (within ±2px of centre)
 const BUNDLE_OFFSETS = [-2, -1, 0, 1, 2]
-const BUNDLE_LEN     = 32  // px straight down
+const BUNDLE_LEN     = 32
+
+// ─── Wind interaction constants ───────────────────────────────────────────────
+
+const SWAY_RADIUS = 35  // percent of container — flowers within this distance sway
+const MAX_SWAY    = 8   // max degrees of sway
+const ACTIVE_R    = 15  // percent — closest flower within this is "active"
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -65,6 +65,19 @@ export default function BouquetView({ eventId, highlightFlowerId, fillHeight }: 
   const [flowers,  setFlowers]  = useState<Flower[]>([])
   const [loading,  setLoading]  = useState(true)
   const [selected, setSelected] = useState<Flower | null>(null)
+
+  // Wind / touch interaction
+  const [swayAngles,     setSwayAngles]     = useState<Record<string, number>>({})
+  const [activeFlowerId, setActiveFlowerId] = useState<string | null>(null)
+  const [isTouching,     setIsTouching]     = useState(false)
+  const [hintVisible,    setHintVisible]    = useState(false)
+
+  // Refs for stable event handler closures
+  const containerRef = useRef<HTMLDivElement>(null)
+  const rafRef       = useRef<number | null>(null)
+  const activeIdRef  = useRef<string | null>(null)
+  const flowersRef   = useRef<Flower[]>([])
+  const layoutRef    = useRef<LayoutPos[]>([])
 
   useEffect(() => {
     setLoading(true)
@@ -96,8 +109,97 @@ export default function BouquetView({ eventId, highlightFlowerId, fillHeight }: 
   const tap    = Math.max(TAP_MIN, sz)
   const offset = (tap - sz) / 2
   const layout = useMemo(() => computeLayout(n, H), [n, H])
-
   const ribbonY = H * RIBBON_PCT
+
+  // Keep refs in sync with latest render values
+  useEffect(() => { flowersRef.current = flowers }, [flowers])
+  useEffect(() => { layoutRef.current  = layout  }, [layout])
+
+  // One-time "drag to explore" hint — fades in then out
+  useEffect(() => {
+    if (n === 0) return
+    if (sessionStorage.getItem('bouquetHintShown')) return
+    const show   = setTimeout(() => setHintVisible(true),  200)
+    const hide   = setTimeout(() => setHintVisible(false), 2500)
+    const finish = setTimeout(() => sessionStorage.setItem('bouquetHintShown', '1'), 3200)
+    return () => { clearTimeout(show); clearTimeout(hide); clearTimeout(finish) }
+  }, [n])
+
+  // Compute sway angles and active flower from touch position
+  const updateSway = useCallback((clientX: number, clientY: number) => {
+    const container = containerRef.current
+    if (!container) return
+    const rect      = container.getBoundingClientRect()
+    const touchXPct = ((clientX - rect.left) / rect.width)  * 100
+    const touchYPct = ((clientY - rect.top)  / rect.height) * 100
+
+    let closestDist = Infinity
+    let closestId: string | null = null
+    const newAngles: Record<string, number> = {}
+
+    flowersRef.current.forEach((flower, i) => {
+      const pos = layoutRef.current[i]
+      if (!pos) return
+      const dx   = touchXPct - pos.x
+      const dy   = touchYPct - pos.y
+      const dist = Math.sqrt(dx * dx + dy * dy)
+
+      if (dist < SWAY_RADIUS) {
+        const strength = 1 - dist / SWAY_RADIUS
+        // Sway direction: right of finger = clockwise, left = counter-clockwise
+        newAngles[flower.id] = MAX_SWAY * strength * Math.sign(dx)
+      }
+      if (dist < closestDist) {
+        closestDist = dist
+        closestId   = flower.id
+      }
+    })
+
+    const newActiveId = closestDist < ACTIVE_R ? closestId : null
+    activeIdRef.current = newActiveId
+    setSwayAngles(newAngles)
+    setActiveFlowerId(newActiveId)
+  }, [])
+
+  // Native touch listeners (passive: false so preventDefault works)
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const onStart = (e: TouchEvent) => {
+      e.preventDefault()  // prevent synthetic click
+      setIsTouching(true)
+      const t = e.touches[0]
+      updateSway(t.clientX, t.clientY)
+    }
+
+    const onMove = (e: TouchEvent) => {
+      e.preventDefault()
+      const t  = e.touches[0]
+      const cx = t.clientX
+      const cy = t.clientY
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      rafRef.current = requestAnimationFrame(() => updateSway(cx, cy))
+    }
+
+    const onEnd = () => {
+      setIsTouching(false)
+      setSwayAngles({})
+      const flower = flowersRef.current.find(f => f.id === activeIdRef.current)
+      activeIdRef.current = null
+      setActiveFlowerId(null)
+      if (flower) setSelected(flower)
+    }
+
+    container.addEventListener('touchstart', onStart, { passive: false })
+    container.addEventListener('touchmove',  onMove,  { passive: false })
+    container.addEventListener('touchend',   onEnd)
+    return () => {
+      container.removeEventListener('touchstart', onStart)
+      container.removeEventListener('touchmove',  onMove)
+      container.removeEventListener('touchend',   onEnd)
+    }
+  }, [updateSway])
 
   // ── Loading state ─────────────────────────────────────────────────────────
   if (loading) {
@@ -106,8 +208,8 @@ export default function BouquetView({ eventId, highlightFlowerId, fillHeight }: 
 
   // ── Empty state ───────────────────────────────────────────────────────────
   if (n === 0) {
-    const H0      = getH(0)
-    const rib0    = H0 * RIBBON_PCT
+    const H0   = getH(0)
+    const rib0 = H0 * RIBBON_PCT
     return (
       <div
         className="relative w-full overflow-hidden rounded-2xl bg-[#FDF6EE]"
@@ -119,13 +221,11 @@ export default function BouquetView({ eventId, highlightFlowerId, fillHeight }: 
           aria-hidden="true"
           style={{ zIndex: 0 }}
         >
-          {/* Single fan stem going straight up from ribbon */}
           <line
             x1={W / 2} y1={rib0}
             x2={W / 2} y2={H0 * 0.08}
             stroke="#A8C5A0" strokeWidth="2" strokeLinecap="round"
           />
-          {/* Tight bundle going straight down from ribbon */}
           {BUNDLE_OFFSETS.map(dx => (
             <line
               key={dx}
@@ -135,7 +235,6 @@ export default function BouquetView({ eventId, highlightFlowerId, fillHeight }: 
             />
           ))}
         </svg>
-        {/* Ribbon sits on top, covering the join point */}
         <img
           src="/images/ribbon.png"
           alt="" aria-hidden="true"
@@ -155,6 +254,7 @@ export default function BouquetView({ eventId, highlightFlowerId, fillHeight }: 
   return (
     <>
       <div
+        ref={containerRef}
         className="relative w-full overflow-hidden rounded-2xl bg-[#FDF6EE]"
         style={fillHeight ? { height: '100%' } : { aspectRatio: `${W} / ${H}` }}
       >
@@ -165,21 +265,18 @@ export default function BouquetView({ eventId, highlightFlowerId, fillHeight }: 
           aria-hidden="true"
           style={{ zIndex: 0 }}
         >
-          {/* Fan stems: FROM ribbon centre UPWARD to each flower head */}
           {flowers.map((flower, i) => {
             const pos = layout[i]
             if (!pos) return null
             return (
               <line
                 key={flower.id}
-                x1={W / 2}           y1={ribbonY}
+                x1={W / 2}             y1={ribbonY}
                 x2={(pos.x / 100) * W} y2={(pos.y / 100) * H}
                 stroke="#A8C5A0" strokeWidth="2" strokeLinecap="round"
               />
             )
           })}
-
-          {/* Tight bundle: 4 lines going straight down ~30px below ribbon */}
           {BUNDLE_OFFSETS.map(dx => (
             <line
               key={dx}
@@ -208,18 +305,26 @@ export default function BouquetView({ eventId, highlightFlowerId, fillHeight }: 
           const pos = layout[i]
           if (!pos) return null
           const isHighlighted = flower.id === highlightFlowerId
+          const isActive      = flower.id === activeFlowerId
+          const sway          = swayAngles[flower.id] ?? 0
+          const baseRot       = flower.bouquet_rotation ?? 0
+          const scaleVal      = isActive ? 1.15 : isHighlighted ? 1.2 : 1
+          const transition    = isTouching
+            ? 'transform 0.08s ease-out'
+            : 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)'
           return (
             <button
               key={flower.id}
               onClick={() => setSelected(flower)}
-              className="absolute transition-transform active:scale-90"
+              className="absolute"
               style={{
-                width:     `${tap}px`,
-                height:    `${tap}px`,
-                left:      `${pos.x}%`,
-                top:       `${pos.y}%`,
-                transform: `translate(-50%, -50%) rotate(${flower.bouquet_rotation ?? 0}deg)${isHighlighted ? ' scale(1.2)' : ''}`,
-                zIndex:    isHighlighted ? 10 : 3,
+                width:      `${tap}px`,
+                height:     `${tap}px`,
+                left:       `${pos.x}%`,
+                top:        `${pos.y}%`,
+                transform:  `translate(-50%, -50%) rotate(${baseRot + sway}deg) scale(${scaleVal})`,
+                transition,
+                zIndex:     isActive || isHighlighted ? 10 : 3,
               }}
               aria-label={`${flower.contributor_name}'s flower`}
             >
@@ -236,6 +341,24 @@ export default function BouquetView({ eventId, highlightFlowerId, fillHeight }: 
             </button>
           )
         })}
+
+        {/* ── "drag to explore" hint — one-time, fades in then out ── */}
+        <div
+          className="pointer-events-none absolute inset-x-0 flex justify-center"
+          style={{
+            bottom:     '42%',
+            zIndex:     5,
+            opacity:    hintVisible ? 1 : 0,
+            transition: 'opacity 0.6s ease',
+          }}
+        >
+          <span
+            className="rounded-full bg-black/20 px-4 py-1.5 text-[13px] text-white backdrop-blur-sm"
+            style={{ fontFamily: 'var(--font-biro)' }}
+          >
+            drag to explore
+          </span>
+        </div>
       </div>
 
       {selected && (
